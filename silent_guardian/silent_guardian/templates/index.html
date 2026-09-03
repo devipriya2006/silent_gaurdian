@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Silent Guardian — Detect{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>Real-time violence detection, automated evidence &amp; alerts</h1>
+  <p class="subtitle">
+    Upload a clip or run the live camera demo. Silent Guardian analyzes motion
+    patterns frame-by-frame, flags likely violent activity, captures evidence
+    frames, and logs incidents for human review.
+  </p>
+  <div class="badge-row">
+    <span class="badge">Threshold: {{ threshold }}</span>
+    <span class="badge badge-live">● Live monitoring supported</span>
+  </div>
+</section>
+
+<div class="grid-2">
+
+  <!-- Video upload panel -->
+  <div class="card">
+    <h2>📼 Analyze a video file</h2>
+    <form id="uploadForm">
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="videoInput" name="video" accept="video/*" hidden>
+        <span id="dropzoneText">Click to choose a video, or drag &amp; drop</span>
+      </label>
+      <button type="submit" class="btn btn-primary" id="analyzeBtn">Analyze Video</button>
+    </form>
+    <div id="uploadStatus" class="status-line"></div>
+    <canvas id="timelineChart" height="140" style="display:none;"></canvas>
+    <div id="uploadResults"></div>
+  </div>
+
+  <!-- Live webcam panel -->
+  <div class="card">
+    <h2>🎥 Live camera demo</h2>
+    <p class="muted">Runs entirely in your browser session — frames are streamed to the server for scoring.</p>
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="captureCanvas" style="display:none;"></canvas>
+    <div class="live-controls">
+      <button id="startLive" class="btn btn-primary">Start Camera</button>
+      <button id="stopLive" class="btn btn-secondary" disabled>Stop</button>
+    </div>
+    <div class="score-panel">
+      <div class="score-label">Live violence score</div>
+      <div class="score-bar-track">
+        <div id="scoreBar" class="score-bar-fill"></div>
+      </div>
+      <div id="scoreValue" class="score-value">0.00</div>
+      <div id="liveSeverity" class="severity-tag severity-low">Low</div>
+    </div>
+    <div id="liveAlert" class="alert-box" style="display:none;"></div>
+  </div>
+
+</div>
+
+<section class="card info-card">
+  <h2>How detection works</h2>
+  <ol>
+    <li><strong>Motion extraction</strong> — dense optical flow is computed between consecutive frames.</li>
+    <li><strong>Feature scoring</strong> — motion energy, spikiness, and directional chaos are combined into a per-frame score, adaptively normalized to the scene's own baseline activity.</li>
+    <li><strong>Temporal smoothing</strong> — scores are averaged over a short sliding window so a single noisy frame can't trigger a false alert.</li>
+    <li><strong>Alert &amp; evidence capture</strong> — once the smoothed score crosses the threshold, an evidence frame is saved, an incident is logged, and an alert (email/webhook) is dispatched, respecting a cooldown to avoid spam.</li>
+  </ol>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

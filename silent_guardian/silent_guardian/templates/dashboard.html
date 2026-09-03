@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Silent Guardian — Dashboard{% endblock %}
+{% block content %}
+
+<section class="hero small-hero">
+  <h1>Incident Review Dashboard</h1>
+  <p class="subtitle">Every flagged incident lands here for a human to confirm or dismiss.</p>
+</section>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-number">{{ stats.total }}</div>
+    <div class="stat-label">Total Incidents</div>
+  </div>
+  <div class="stat-card stat-high">
+    <div class="stat-number">{{ stats.high_severity }}</div>
+    <div class="stat-label">High Severity</div>
+  </div>
+  <div class="stat-card stat-warn">
+    <div class="stat-number">{{ stats.unreviewed }}</div>
+    <div class="stat-label">Awaiting Review</div>
+  </div>
+  <div class="stat-card stat-ok">
+    <div class="stat-number">{{ stats.confirmed }}</div>
+    <div class="stat-label">Confirmed</div>
+  </div>
+</div>
+
+<div class="card">
+  {% if incidents %}
+  <table class="incident-table">
+    <thead>
+      <tr>
+        <th>Evidence</th>
+        <th>ID</th>
+        <th>Timestamp (UTC)</th>
+        <th>Source</th>
+        <th>Confidence</th>
+        <th>Severity</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inc in incidents %}
+      <tr id="row-{{ inc.id }}">
+        <td>
+          {% if inc.evidence_file %}
+          <a href="{{ url_for('evidence', filename=inc.evidence_file) }}" target="_blank">
+            <img class="thumb" src="{{ url_for('evidence', filename=inc.evidence_file) }}" alt="evidence">
+          </a>
+          {% else %}—{% endif %}
+        </td>
+        <td>#{{ inc.id }}</td>
+        <td>{{ inc.timestamp }}</td>
+        <td>{{ inc.source }}</td>
+        <td>{{ "%.2f"|format(inc.confidence) }}</td>
+        <td><span class="severity-tag severity-{{ inc.severity|lower }}">{{ inc.severity }}</span></td>
+        <td><span class="status-tag status-{{ inc.status }}">{{ inc.status }}</span></td>
+        <td class="actions">
+          <button class="btn-mini btn-confirm" onclick="reviewIncident({{ inc.id }}, 'confirmed')">Confirm</button>
+          <button class="btn-mini btn-dismiss" onclick="reviewIncident({{ inc.id }}, 'false_positive')">Dismiss</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No incidents logged yet. Run the detector from the <a href="{{ url_for('index') }}">Detect</a> page.</p>
+  {% endif %}
+</div>
+
+<script>
+function reviewIncident(id, status) {
+  fetch(`/api/incidents/${id}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  }).then(() => {
+    const row = document.getElementById(`row-${id}`);
+    const tag = row.querySelector(".status-tag");
+    tag.textContent = status;
+    tag.className = `status-tag status-${status}`;
+  });
+}
+</script>
+{% endblock %}
