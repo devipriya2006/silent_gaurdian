@@ -82,7 +82,9 @@ class MotionFeatureExtractor:
         # directions are among the fastest-moving pixels.
         fast_mask = mag > motion_energy
         if np.any(fast_mask):
-            hist, _ = np.histogram(ang[fast_mask], bins=16, range=(0, 2 * np.pi))
+            angles = np.mod(ang[fast_mask].astype(np.float64), 2 * np.pi)
+            bin_idx = np.clip((angles / (2 * np.pi) * 16).astype(int), 0, 15)
+            hist = np.bincount(bin_idx, minlength=16)
             total = hist.sum()
             if total > 0:
                 p = hist / total
