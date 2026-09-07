@@ -1,20 +1,21 @@
 """
-Alert dispatch utility.
+Tiered alert dispatch.
 
-Supports two optional notification channels, both configured purely
-via environment variables so no secrets live in code:
+Alert behavior by classification level (per project spec):
+  LOW       -> no alert at all
+  MODERATE  -> shown as a warning in the results UI only (no external send)
+  HIGH      -> shown as a strong warning in the UI, incident saved for
+               review, but no external notification (keeps it a
+               reviewer-facing signal, not a page-someone-at-2am signal)
+  CRITICAL  -> prominent emergency alert in the UI AND an external
+               notification (email/webhook), since this is the tier
+               meant for urgent human attention
 
-  1. Email (SMTP) — set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
-     ALERT_EMAIL_TO (recipient), ALERT_EMAIL_FROM (optional, defaults
-     to SMTP_USER).
-
-  2. Webhook (e.g. Slack/Discord incoming webhook, or any URL that
-     accepts a JSON POST) — set ALERT_WEBHOOK_URL.
-
-If none of these are configured, alerts are simply logged to stdout —
-the rest of the system (evidence capture, DB logging, dashboard) still
-works fully, which keeps the project easy to demo without setting up
-email credentials.
+Email/webhook channels are both optional and configured purely via
+environment variables. If neither is configured, CRITICAL alerts are
+still logged to stdout and still create an incident — the rest of the
+system works fully without any alerting credentials, which keeps the
+project easy to demo.
 """
 
 import os
@@ -25,9 +26,36 @@ from email.message import EmailMessage
 import requests
 
 
-def send_alert(subject, message, image_path=None):
-    _log_alert(subject, message)
+def dispatch(level, subject, message, image_path=None):
+    """
+    Routes an alert according to its classification level.
+    Returns a dict describing what happened, for the API response.
+    """
+    if level == "LOW":
+        return {"tier": "none", "external_sent": False}
 
+    if level == "MODERATE":
+        _log(subject, message, tag="WARNING")
+        return {"tier": "warning", "external_sent": False}
+
+    if level == "HIGH":
+        _log(subject, message, tag="STRONG WARNING")
+        return {"tier": "strong_warning", "external_sent": False}
+
+    # CRITICAL
+    _log(subject, message, tag="EMERGENCY")
+    sent = _send_external(subject, message, image_path)
+    return {"tier": "emergency", "external_sent": sent}
+
+
+def _log(subject, message, tag):
+    print("=" * 60)
+    print(f"[{tag}] {subject}")
+    print(message)
+    print("=" * 60)
+
+
+def _send_external(subject, message, image_path=None):
     sent_any = False
     if _email_configured():
         try:
@@ -44,13 +72,6 @@ def send_alert(subject, message, image_path=None):
             print(f"[alerts] Webhook send failed: {exc}")
 
     return sent_any
-
-
-def _log_alert(subject, message):
-    print("=" * 60)
-    print(f"[ALERT] {subject}")
-    print(message)
-    print("=" * 60)
 
 
 def _email_configured():
