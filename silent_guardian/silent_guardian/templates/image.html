@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Silent Guardian — Image Analysis{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>Image Analysis</h1>
+  <p class="subtitle">
+    Upload a single photo (JPG/PNG) for a lightweight visual-indicator check.
+    A still image is the weakest signal of the three modes — treat results
+    here as a prompt for review, not a conclusion.
+  </p>
+</section>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>🖼️ Upload an image</h2>
+    <form id="imageUploadForm">
+      <label class="dropzone" id="imageDropzone">
+        <input type="file" id="imageInput" name="image" accept="image/jpeg,image/png,.jpg,.jpeg,.png" hidden>
+        <span id="imageDropzoneText">Click to choose an image, or drag &amp; drop</span>
+      </label>
+      <button type="submit" class="btn btn-primary" id="analyzeImageBtn">Analyze Image</button>
+    </form>
+    <div id="imageStatus" class="status-line"></div>
+    <img id="imagePreview" style="display:none; max-width:100%; border-radius:12px; margin-top:14px; border:1px solid var(--border);">
+  </div>
+
+  <div class="card">
+    <h2>Result</h2>
+    <div id="imageResults" style="display:none;">
+      <div class="score-panel">
+        <div class="score-label">Risk/confidence score</div>
+        <div class="score-bar-track">
+          <div id="imageScoreBar" class="score-bar-fill"></div>
+        </div>
+        <div id="imageScoreValue" class="score-value">0.0 / 100</div>
+        <div id="imageSeverity" class="severity-tag severity-low">LOW</div>
+      </div>
+      <table class="detail-table">
+        <tr><td>Edge density</td><td id="imgEdgeDensity">—</td></tr>
+        <tr><td>Contrast</td><td id="imgContrast">—</td></tr>
+        <tr><td>Texture complexity</td><td id="imgTexture">—</td></tr>
+      </table>
+      <div id="imageAlert" class="alert-box" style="display:none;"></div>
+    </div>
+    <p class="muted disclaimer">
+      A single still image is often ambiguous — the same pose or moment can
+      look very different with context. This score cannot prove that
+      violence occurred and should be treated as a prompt for human review.
+    </p>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/image.js') }}"></script>
+{% endblock %}

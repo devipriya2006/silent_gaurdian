@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Silent Guardian — Audio Analysis{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>Audio Analysis</h1>
+  <p class="subtitle">
+    Upload an audio file or record from your microphone. Acoustic energy,
+    pitch, and intensity patterns are analyzed for possible distress or
+    aggressive sound — loud or sudden sound alone does not mean violence.
+  </p>
+</section>
+
+<div class="card">
+  <h2>🎙️ Analyze audio</h2>
+
+  <div class="audio-controls-row">
+    <div>
+      <p class="muted" style="margin-bottom:8px;">Upload a WAV file:</p>
+      <form id="audioUploadForm">
+        <label class="dropzone dropzone-small" id="audioDropzone">
+          <input type="file" id="audioInput" name="audio" accept="audio/wav,audio/x-wav,.wav" hidden>
+          <span id="audioDropzoneText">Click to choose a .wav file</span>
+        </label>
+        <button type="submit" class="btn btn-primary" id="analyzeAudioBtn">Analyze File</button>
+      </form>
+    </div>
+
+    <div>
+      <p class="muted" style="margin-bottom:8px;">Or record from your microphone:</p>
+      <div class="live-controls">
+        <button id="startRecord" class="btn btn-primary">● Start Recording</button>
+        <button id="stopRecord" class="btn btn-secondary" disabled>Stop &amp; Analyze</button>
+      </div>
+      <div id="recordStatus" class="status-line"></div>
+    </div>
+  </div>
+
+  <div id="audioStatus" class="status-line"></div>
+
+  <div id="audioResults" class="audio-results" style="display:none;">
+    <div class="score-panel">
+      <div class="score-label">Risk/confidence score</div>
+      <div class="score-bar-track">
+        <div id="audioScoreBar" class="score-bar-fill"></div>
+      </div>
+      <div id="audioScoreValue" class="score-value">0.0 / 100</div>
+      <div id="audioSeverity" class="severity-tag severity-low">LOW</div>
+    </div>
+    <table class="detail-table">
+      <tr><td>Category</td><td id="audioCategory">—</td></tr>
+      <tr><td>Duration</td><td id="audioDuration">—</td></tr>
+      <tr><td>Peak segment</td><td id="audioPeakTime">—</td></tr>
+    </table>
+    <div id="audioAlert" class="alert-box" style="display:none;"></div>
+    <p class="muted disclaimer">
+      Loud, sudden, or high-pitched sound (shouting, alarms, excitement) does
+      not by itself mean violence occurred. This score reflects acoustic
+      intensity patterns only and is intended for human review.
+    </p>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/audio.js') }}"></script>
+{% endblock %}
