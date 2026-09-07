@@ -1,70 +1,89 @@
 {% extends "base.html" %}
-{% block title %}Silent Guardian — Detect{% endblock %}
+{% block title %}Silent Guardian{% endblock %}
 {% block content %}
 
 <section class="hero">
-  <h1>Real-time violence detection, automated evidence &amp; alerts</h1>
+  <h1>Multimodal potential-emergency detection</h1>
   <p class="subtitle">
-    Upload a clip or run the live camera demo. Silent Guardian analyzes motion
-    patterns frame-by-frame, flags likely violent activity, captures evidence
-    frames, and logs incidents for human review.
+    Silent Guardian analyzes video, audio, and images for observable
+    indicators of potential physical aggression or distress — flagging
+    results for human review, never as automated proof of what happened.
   </p>
-  <div class="badge-row">
-    <span class="badge">Threshold: {{ threshold }}</span>
-    <span class="badge badge-live">● Live monitoring supported</span>
-  </div>
 </section>
 
-<div class="grid-2">
-
-  <!-- Video upload panel -->
-  <div class="card">
-    <h2>📼 Analyze a video file</h2>
-    <form id="uploadForm">
-      <label class="dropzone" id="dropzone">
-        <input type="file" id="videoInput" name="video" accept="video/*" hidden>
-        <span id="dropzoneText">Click to choose a video, or drag &amp; drop</span>
-      </label>
-      <button type="submit" class="btn btn-primary" id="analyzeBtn">Analyze Video</button>
-    </form>
-    <div id="uploadStatus" class="status-line"></div>
-    <canvas id="timelineChart" height="140" style="display:none;"></canvas>
-    <div id="uploadResults"></div>
-  </div>
-
-  <!-- Live webcam panel -->
-  <div class="card">
-    <h2>🎥 Live camera demo</h2>
-    <p class="muted">Runs entirely in your browser session — frames are streamed to the server for scoring.</p>
-    <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="captureCanvas" style="display:none;"></canvas>
-    <div class="live-controls">
-      <button id="startLive" class="btn btn-primary">Start Camera</button>
-      <button id="stopLive" class="btn btn-secondary" disabled>Stop</button>
-    </div>
-    <div class="score-panel">
-      <div class="score-label">Live violence score</div>
-      <div class="score-bar-track">
-        <div id="scoreBar" class="score-bar-fill"></div>
-      </div>
-      <div id="scoreValue" class="score-value">0.00</div>
-      <div id="liveSeverity" class="severity-tag severity-low">Low</div>
-    </div>
-    <div id="liveAlert" class="alert-box" style="display:none;"></div>
-  </div>
-
+<div class="mode-grid">
+  <a class="mode-card" href="{{ url_for('video_page') }}">
+    <div class="mode-icon">🎥</div>
+    <h2>Video Analysis</h2>
+    <p>Upload a clip or run the live camera demo. Motion-pattern analysis flags likely aggressive activity in real time.</p>
+    <span class="mode-cta">Open Video Analysis →</span>
+  </a>
+  <a class="mode-card" href="{{ url_for('audio_page') }}">
+    <div class="mode-icon">🎙️</div>
+    <h2>Audio Analysis</h2>
+    <p>Upload or record audio. Acoustic energy and pitch patterns are analyzed for possible distress or aggressive sound.</p>
+    <span class="mode-cta">Open Audio Analysis →</span>
+  </a>
+  <a class="mode-card" href="{{ url_for('image_page') }}">
+    <div class="mode-icon">🖼️</div>
+    <h2>Image Analysis</h2>
+    <p>Upload a single photo for a lightweight visual-indicator check — the weakest of the three signals by nature.</p>
+    <span class="mode-cta">Open Image Analysis →</span>
+  </a>
 </div>
 
-<section class="card info-card">
-  <h2>How detection works</h2>
-  <ol>
-    <li><strong>Motion extraction</strong> — dense optical flow is computed between consecutive frames.</li>
-    <li><strong>Feature scoring</strong> — motion energy, spikiness, and directional chaos are combined into a per-frame score, adaptively normalized to the scene's own baseline activity.</li>
-    <li><strong>Temporal smoothing</strong> — scores are averaged over a short sliding window so a single noisy frame can't trigger a false alert.</li>
-    <li><strong>Alert &amp; evidence capture</strong> — once the smoothed score crosses the threshold, an evidence frame is saved, an incident is logged, and an alert (email/webhook) is dispatched, respecting a cooldown to avoid spam.</li>
-  </ol>
+<section class="card">
+  <h2>System overview</h2>
+  <div class="stats-row" style="margin-top:16px;">
+    <div class="stat-card">
+      <div class="stat-number">{{ stats.analyses }}</div>
+      <div class="stat-label">Total Analyses</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">{{ stats.total }}</div>
+      <div class="stat-label">Total Incidents</div>
+    </div>
+    <div class="stat-card stat-high">
+      <div class="stat-number">{{ stats.high_risk }}</div>
+      <div class="stat-label">High-risk Incidents</div>
+    </div>
+    <div class="stat-card stat-high">
+      <div class="stat-number">{{ stats.critical }}</div>
+      <div class="stat-label">Critical</div>
+    </div>
+    <div class="stat-card stat-warn">
+      <div class="stat-number">{{ stats.pending }}</div>
+      <div class="stat-label">Pending Review</div>
+    </div>
+    <div class="stat-card stat-ok">
+      <div class="stat-number">{{ stats.verified }}</div>
+      <div class="stat-label">Verified</div>
+    </div>
+  </div>
+  <p class="muted" style="margin-top:16px;">
+    See every flagged incident, filter by source or status, and confirm
+    or dismiss results on the <a href="{{ url_for('dashboard') }}">Dashboard</a>.
+  </p>
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<section class="card info-card">
+  <h2>Scoring &amp; classification</h2>
+  <p class="muted">
+    Every mode reports the same normalized 0–100 risk/confidence indicator,
+    classified consistently:
+  </p>
+  <div class="level-legend">
+    <span class="severity-tag severity-low">LOW · 0–29</span>
+    <span class="severity-tag severity-moderate">MODERATE · 30–49</span>
+    <span class="severity-tag severity-high">HIGH · 50–74</span>
+    <span class="severity-tag severity-critical">CRITICAL · 75–100</span>
+  </div>
+  <p class="muted" style="margin-top:14px;">
+    This score is a model confidence/risk indicator only — it is not
+    proof that violence, abuse, or harassment occurred. HIGH and
+    CRITICAL results are saved for human review rather than acted on
+    automatically.
+  </p>
+</section>
+
 {% endblock %}
