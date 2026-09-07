@@ -4,84 +4,111 @@
 
 <section class="hero small-hero">
   <h1>Incident Review Dashboard</h1>
-  <p class="subtitle">Every flagged incident lands here for a human to confirm or dismiss.</p>
+  <p class="subtitle">Every HIGH or CRITICAL result from any mode lands here for a human to confirm or dismiss.</p>
 </section>
 
 <div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-number">{{ stats.analyses }}</div>
+    <div class="stat-label">Total Analyses</div>
+  </div>
   <div class="stat-card">
     <div class="stat-number">{{ stats.total }}</div>
     <div class="stat-label">Total Incidents</div>
   </div>
   <div class="stat-card stat-high">
-    <div class="stat-number">{{ stats.high_severity }}</div>
-    <div class="stat-label">High Severity</div>
+    <div class="stat-number">{{ stats.high_risk }}</div>
+    <div class="stat-label">High-risk Incidents</div>
+  </div>
+  <div class="stat-card stat-high">
+    <div class="stat-number">{{ stats.critical }}</div>
+    <div class="stat-label">Critical</div>
   </div>
   <div class="stat-card stat-warn">
-    <div class="stat-number">{{ stats.unreviewed }}</div>
-    <div class="stat-label">Awaiting Review</div>
+    <div class="stat-number">{{ stats.pending }}</div>
+    <div class="stat-label">Pending Review</div>
   </div>
   <div class="stat-card stat-ok">
-    <div class="stat-number">{{ stats.confirmed }}</div>
-    <div class="stat-label">Confirmed</div>
+    <div class="stat-number">{{ stats.verified }}</div>
+    <div class="stat-label">Verified</div>
   </div>
 </div>
 
 <div class="card">
+  <div class="filter-bar">
+    <select id="filterSource">
+      <option value="">All sources</option>
+      <option value="video">Video</option>
+      <option value="audio">Audio</option>
+      <option value="image">Image</option>
+    </select>
+    <select id="filterClassification">
+      <option value="">All classifications</option>
+      <option value="LOW">LOW</option>
+      <option value="MODERATE">MODERATE</option>
+      <option value="HIGH">HIGH</option>
+      <option value="CRITICAL">CRITICAL</option>
+    </select>
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      {% for s in valid_statuses %}
+      <option value="{{ s }}">{{ s }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" id="filterDateFrom" title="From date">
+    <input type="date" id="filterDateTo" title="To date">
+    <button class="btn-mini" id="clearFilters">Clear</button>
+  </div>
+
   {% if incidents %}
-  <table class="incident-table">
+  <table class="incident-table" id="incidentTable">
     <thead>
       <tr>
         <th>Evidence</th>
         <th>ID</th>
         <th>Timestamp (UTC)</th>
         <th>Source</th>
-        <th>Confidence</th>
-        <th>Severity</th>
+        <th>Score</th>
+        <th>Classification</th>
         <th>Status</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for inc in incidents %}
-      <tr id="row-{{ inc.id }}">
+      <tr id="row-{{ inc.id }}"
+          data-source="{{ inc.source }}"
+          data-classification="{{ inc.classification }}"
+          data-status="{{ inc.status }}"
+          data-date="{{ inc.timestamp[:10] }}">
         <td>
-          {% if inc.evidence_file %}
+          {% if inc.evidence_file and inc.source in ['video', 'image'] %}
           <a href="{{ url_for('evidence', filename=inc.evidence_file) }}" target="_blank">
             <img class="thumb" src="{{ url_for('evidence', filename=inc.evidence_file) }}" alt="evidence">
           </a>
+          {% elif inc.evidence_file and inc.source == 'audio' %}
+          <a href="{{ url_for('evidence', filename=inc.evidence_file) }}" target="_blank" class="thumb audio-thumb">🎙️</a>
           {% else %}—{% endif %}
         </td>
         <td>#{{ inc.id }}</td>
         <td>{{ inc.timestamp }}</td>
-        <td>{{ inc.source }}</td>
-        <td>{{ "%.2f"|format(inc.confidence) }}</td>
-        <td><span class="severity-tag severity-{{ inc.severity|lower }}">{{ inc.severity }}</span></td>
-        <td><span class="status-tag status-{{ inc.status }}">{{ inc.status }}</span></td>
+        <td><span class="source-tag source-{{ inc.source }}">{{ inc.source }}</span></td>
+        <td>{{ "%.1f"|format(inc.score) }}</td>
+        <td><span class="severity-tag severity-{{ inc.classification|lower }}">{{ inc.classification }}</span></td>
+        <td><span class="status-tag status-{{ inc.status|replace(' ', '_') }}">{{ inc.status }}</span></td>
         <td class="actions">
-          <button class="btn-mini btn-confirm" onclick="reviewIncident({{ inc.id }}, 'confirmed')">Confirm</button>
-          <button class="btn-mini btn-dismiss" onclick="reviewIncident({{ inc.id }}, 'false_positive')">Dismiss</button>
+          <button class="btn-mini btn-confirm" onclick="reviewIncident({{ inc.id }}, 'Verified')">Verify</button>
+          <button class="btn-mini btn-dismiss" onclick="reviewIncident({{ inc.id }}, 'False Alarm')">False Alarm</button>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  <p id="noResultsMsg" class="muted" style="display:none; margin-top:14px;">No incidents match the current filters.</p>
   {% else %}
-  <p class="muted">No incidents logged yet. Run the detector from the <a href="{{ url_for('index') }}">Detect</a> page.</p>
+  <p class="muted">No incidents logged yet. Run a detector from the Video, Audio, or Image pages.</p>
   {% endif %}
 </div>
 
-<script>
-function reviewIncident(id, status) {
-  fetch(`/api/incidents/${id}/review`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status })
-  }).then(() => {
-    const row = document.getElementById(`row-${id}`);
-    const tag = row.querySelector(".status-tag");
-    tag.textContent = status;
-    tag.className = `status-tag status-${status}`;
-  });
-}
-</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
