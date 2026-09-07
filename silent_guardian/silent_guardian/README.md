@@ -1,83 +1,109 @@
-# 🛡️ Silent Guardian — AI-Based Violence Detection and Smart Alert System
+# 🛡️ Silent Guardian — Multimodal Emergency Detection System
 
-A computer-vision system that analyzes video (uploaded clips or a live
-webcam feed) to detect potential physical violence, automatically
-captures evidence frames, raises alerts, and logs incidents to a
+A computer-vision / audio-analysis system that analyzes **video, audio,
+and images** for observable indicators of potential physical
+aggression or distress, captures evidence, and logs incidents to a
 dashboard for human review.
+
+> **Framing note (important for reports/viva):** every score this
+> system produces is a *model confidence/risk indicator*, not proof
+> that violence, abuse, or harassment occurred. Every HIGH/CRITICAL
+> result is explicitly routed to human review rather than acted on
+> automatically. See `detector/scoring.py` for the disclaimer text
+> surfaced throughout the app.
 
 ## Features
 
-- 📼 **Upload & analyze** any video file, with a full violence-score
-  timeline chart
-- 🎥 **Live camera demo** running in-browser, streaming frames to the
-  backend for real-time scoring
-- 🧠 **Adaptive motion-analysis detection engine** (optical flow based)
-  that calibrates to each scene's normal activity level instead of
-  using a fixed threshold
-- 🚨 **Automatic evidence capture** — snapshot saved the moment an
-  incident is flagged
-- 📧 **Configurable alerting** — email (SMTP) and/or webhook
-  (Slack/Discord-style), with a cooldown to prevent alert spam
-- 🗂️ **Incident dashboard** — review, confirm, or dismiss (false
-  positive) every flagged incident, with severity levels and stats
+- 🎥 **Video Analysis** — upload a clip or run a live webcam demo;
+  motion-pattern analysis with a real-time score timeline
+- 🎙️ **Audio Analysis** — upload a WAV file or record from the
+  microphone (recorded client-side and encoded to WAV in-browser, so
+  the server needs no ffmpeg/codec dependency)
+- 🖼️ **Image Analysis** — upload a single photo for a lightweight
+  visual-indicator check, explicitly framed as the weakest signal of
+  the three
+- 🧮 **Unified 0–100 scoring** — every mode reports through the same
+  `detector/scoring.py` classifier: **LOW (0–29) / MODERATE (30–49) /
+  HIGH (50–74) / CRITICAL (75–100)**
+- 🚨 **Tiered alerts** — LOW: nothing · MODERATE: in-app warning only ·
+  HIGH: strong in-app warning + saved for review · CRITICAL: prominent
+  alert + external notification (email/webhook) if configured
+- 🧠 **Duplicate-alert suppression** — a continuous high-score stretch
+  (video) is treated as one event, not one incident per frame
+- 🗂️ **Multimodal incident dashboard** — filter by source, classification,
+  status, and date; confirm (Verified) or dismiss (False Alarm) each
+  incident
 - 📤 **CSV export** of the full incident log
 - ☁️ **One-click Render deployment** via `render.yaml`
 
 ## Architecture
 
 ```
-Browser (upload or webcam) ──▶ Flask API ──▶ Motion Feature Extractor
-                                                  │ (optical flow)
-                                                  ▼
-                                          Violence Scorer
-                                        (adaptive + smoothed)
-                                                  │
-                                     threshold crossed?
-                                       │yes              │no
-                                       ▼                  ▼
-                          Evidence capture +        keep streaming
-                          Incident DB (SQLite) +
-                          Alert dispatch (email/webhook)
-                                       │
-                                       ▼
-                              Review Dashboard (Flask templates)
+                    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+                    │   Video     │   │   Audio     │   │   Image     │
+                    │  (upload /  │   │ (upload /   │   │  (upload)   │
+                    │   webcam)   │   │    mic)     │   │             │
+                    └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+                           │                  │                 │
+                    optical flow        energy/pitch      edge/contrast/
+                    motion features      features         texture features
+                           │                  │                 │
+                           └────────┬─────────┴────────┬────────┘
+                                    ▼                   
+                       detector/scoring.py (0-100, LOW/MODERATE/HIGH/CRITICAL)
+                                    │
+                          score >= HIGH threshold?
+                             │yes           │no
+                             ▼               ▼
+                  Evidence capture +   keep monitoring
+                  Incident DB (SQLite) +
+                  Tiered alert dispatch
+                             │
+                             ▼
+                  Multimodal Review Dashboard
+                  (filter, Verify / False Alarm)
 ```
 
-### Detection approach
+### Detection approach per mode
 
-The core detector (`detector/violence_detector.py`) is deliberately
-built as a transparent, dependency-light pipeline rather than a
-bundled black-box model, so it:
+All three detectors are deliberately transparent, dependency-light
+pipelines rather than bundled black-box models — this makes them
+runnable anywhere (no GPU, no large model download) and fully
+explainable in a project report.
 
-- runs anywhere (no GPU, no multi-hundred-MB model download)
-- is fully explainable in a project report/viva
-- gives you concrete, defensible things to say about *why* a frame was
-  flagged (motion energy, spikiness, directional chaos)
+**Video** (`detector/violence_detector.py`) — dense optical flow
+(Farneback) between consecutive frames reduced to motion energy,
+spikiness, and directional chaos, adaptively normalized to the scene's
+own baseline and smoothed over a sliding window.
 
-**Pipeline:**
-1. **Dense optical flow** (Farneback) between consecutive frames
-   estimates per-pixel motion vectors.
-2. Motion vectors are reduced to four interpretable features:
-   `motion_energy`, `motion_std`, `high_motion_ratio`,
-   `direction_entropy` (how many different directions the fastest
-   pixels are moving in — a struggle/shove moves limbs in many
-   directions at once; walking or panning does not).
-3. Each scene keeps a **rolling baseline** of its own recent motion
-   energy, so the detector adapts instead of using one fixed
-   sensitivity for every camera/scene.
-4. Scores are **smoothed over a sliding window** so a single noisy
-   frame can't fire a false alert.
+**Audio** (`detector/audio_detector.py`) — RMS energy, energy-spike
+ratio against the clip's own baseline, zero-crossing rate, and a
+coarse FFT-based high-frequency energy ratio, combined into a score.
+Built on the Python standard library `wave` module + NumPy only (no
+librosa/ffmpeg), so it stays light for free-tier hosting.
 
-### Extending to a trained deep model (suggested future work)
+**Image** (`detector/image_detector.py`) — edge density (Canny),
+global contrast, and texture complexity (Laplacian variance). This
+mode's output is deliberately capped well below 100, since a single
+still image is the weakest of the three signals — there's no motion or
+temporal pattern to analyze, only static texture statistics.
 
-For a stronger classifier, train a 3D-CNN or ST-GCN on a public
-violence-detection dataset such as **RWF-2000** or **Hockey Fight**,
-then wrap it in a class exposing the same `.extract()` / `.update()`
-interface as `MotionFeatureExtractor` / `ViolenceScorer`. Because
-`app.py` only depends on that interface — not on optical flow
-specifically — you can swap detectors without touching alerts,
-storage, or the dashboard. This is a good "Future Scope" section for
-your report.
+### Extending to trained deep models (suggested future work)
+
+Each detector module exposes a small, swappable interface. To upgrade
+accuracy:
+- **Video** → train a 3D-CNN or ST-GCN on RWF-2000 / Hockey Fight and
+  wrap it with the same `.extract()` / `.update()` interface as
+  `MotionFeatureExtractor` / `ViolenceScorer`.
+- **Audio** → train a small audio-event classifier (e.g. on a
+  scream/shout dataset) and have it emit the same `{score, category}`
+  shape as `analyze_audio_bytes()`.
+- **Image** → fine-tune an image classifier on an action/pose dataset
+  and swap in for `analyze_image_bgr()`.
+
+Because `app.py` only depends on each module's function signature —
+not on the specific technique — none of the alerting, storage, or
+dashboard code needs to change.
 
 ## Local setup
 
@@ -93,9 +119,11 @@ Visit `http://localhost:5000`.
 ## Deploying on Render
 
 **Option A — Blueprint (recommended):**
-1. Push this project to a GitHub repo.
-2. In Render, choose **New → Blueprint**, point it at your repo. Render
-   will read `render.yaml` and provision everything automatically.
+1. Push this project to a GitHub repo, with `app.py` and
+   `requirements.txt` at the **repo root** (or set Root Directory in
+   Render's settings if they're in a subfolder).
+2. Render → **New → Blueprint** → select the repo. It reads
+   `render.yaml` and provisions the service automatically.
 
 **Option B — Manual web service:**
 1. **New → Web Service**, connect your repo.
@@ -103,53 +131,63 @@ Visit `http://localhost:5000`.
 3. Start command: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
 4. Add environment variables as needed (see `.env.example`).
 
-> Note: Render's free-tier disk is ephemeral — evidence images and the
-> SQLite DB will reset on redeploy/restart. For a persistent demo,
-> attach a Render Disk, or swap `IncidentDB` for a managed Postgres
-> instance (the interface in `utils/database.py` is small and easy to
-> port).
+`runtime.txt` pins Python to 3.11 for stable OpenCV/NumPy wheel
+availability — recommended to keep as-is unless you've verified newer
+versions work.
+
+> **Ephemeral disk note:** Render's free tier disk resets on
+> redeploy/restart — the SQLite incident DB and saved evidence files
+> won't persist between sessions unless you attach a paid Render Disk
+> or move to managed Postgres + object storage.
 
 ## Environment variables
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `SECRET_KEY` | Flask session signing key | dev key (change in prod) |
-| `VIOLENCE_THRESHOLD` | Smoothed score above which an incident fires | `0.55` |
-| `ALERT_COOLDOWN_SECONDS` | Minimum gap between alerts per session | `15` |
-| `FRAME_SAMPLE_RATE` | Analyze every Nth frame of uploaded videos | `5` |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `ALERT_EMAIL_TO` | Email alerts | unset (logging only) |
-| `ALERT_WEBHOOK_URL` | Slack/Discord-style webhook alerts | unset (logging only) |
+| `ALERT_COOLDOWN_SECONDS` | Minimum gap between live-webcam alerts per session | `15` |
+| `FRAME_SAMPLE_RATE` | Analyze every Nth frame of uploaded videos | `10` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `ALERT_EMAIL_TO` | Email alerts (CRITICAL only) | unset (logging only) |
+| `ALERT_WEBHOOK_URL` | Slack/Discord-style webhook alerts (CRITICAL only) | unset (logging only) |
 
 ## Project structure
 
 ```
 silent_guardian/
-├── app.py                       # Flask app & routes
+├── app.py                       # Flask app & routes (video/audio/image/dashboard)
 ├── detector/
-│   └── violence_detector.py     # Motion extraction + scoring engine
+│   ├── scoring.py               # Unified 0-100 → LOW/MODERATE/HIGH/CRITICAL
+│   ├── violence_detector.py     # Video: motion extraction + scoring
+│   ├── audio_detector.py        # Audio: energy/pitch feature scoring
+│   └── image_detector.py        # Image: texture/edge heuristic scoring
 ├── utils/
-│   ├── database.py              # SQLite incident storage
-│   └── alerts.py                # Email/webhook alert dispatch
-├── templates/                   # index.html, dashboard.html, base.html
-├── static/                      # CSS + JS
-├── data/evidence/                # Saved evidence frames (gitignored)
+│   ├── database.py              # SQLite incident storage + filtering
+│   └── alerts.py                # Tiered alert dispatch (email/webhook)
+├── templates/                   # index (landing), video, audio, image, dashboard
+├── static/                      # CSS + per-page JS
+├── data/evidence/                # Saved evidence files (gitignored)
 ├── requirements.txt
+├── runtime.txt                  # Pins Python 3.11 for Render
 ├── Procfile
 └── render.yaml
 ```
 
 ## Report-ready talking points
 
-- **Problem**: manual CCTV monitoring doesn't scale; incidents are
-  often noticed too late.
-- **Approach**: real-time motion-pattern analysis flags abnormal,
-  high-energy, multi-directional motion characteristic of physical
-  altercations, adapting per-scene rather than using one global
-  threshold.
-- **System design**: modular pipeline (extraction → scoring → alert →
-  storage → review UI), deployable as a lightweight web service.
-- **Evaluation ideas**: benchmark against RWF-2000 / Hockey Fight
-  datasets by treating the smoothed score + threshold as a binary
-  classifier, and report precision/recall/F1 and false-alarm rate.
-- **Future scope**: swap in a trained deep model, add multi-camera
-  support, person re-identification, and mobile push notifications.
+- **Problem**: manual monitoring across video, audio, and image
+  evidence doesn't scale, and incidents are often noticed too late or
+  from only one modality.
+- **Approach**: three independent, explainable detectors report
+  through one unified 0–100 risk scale, so results are comparable and
+  consistently framed across modalities — always as indicators for
+  human review, never as automated proof.
+- **System design**: modular pipeline (extraction → scoring → tiered
+  alert → storage → filterable review dashboard), deployable as a
+  lightweight web service with no GPU or large model dependency.
+- **Evaluation ideas**: benchmark the video detector against RWF-2000 /
+  Hockey Fight, the audio detector against a distress/scream dataset,
+  by treating each score + threshold as a binary classifier and
+  reporting precision/recall/F1 and false-alarm rate.
+- **Future scope**: swap each heuristic detector for a trained deep
+  model behind the same interface; add multi-camera support; person
+  re-identification; mobile push notifications.

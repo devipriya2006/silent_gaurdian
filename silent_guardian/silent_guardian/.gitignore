@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+instance/*.db
+data/evidence/*.jpg
+data/upload_*.mp4
+.env
+venv/
