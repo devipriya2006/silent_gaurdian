@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: silent-guardian
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: VIOLENCE_THRESHOLD
+        value: "0.55"
+      - key: ALERT_COOLDOWN_SECONDS
+        value: "15"
+      - key: FRAME_SAMPLE_RATE
+        value: "5"
+      # Optional — set these in the Render dashboard if you want email alerts:
+      # - key: SMTP_HOST
+      # - key: SMTP_PORT
+      # - key: SMTP_USER
+      # - key: SMTP_PASSWORD
+      # - key: ALERT_EMAIL_TO
+      # - key: ALERT_WEBHOOK_URL
